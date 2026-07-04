@@ -1,0 +1,93 @@
+steps:
+  # Build the app image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - build
+      - '-t'
+      - 'us-east1-docker.pkg.dev/$PROJECT_ID/salefunnel/app:$COMMIT_SHA'
+      - '-t'
+      - 'us-east1-docker.pkg.dev/$PROJECT_ID/salefunnel/app:latest'
+      - '-f'
+      - 'Dockerfile'
+      - '.'
+
+  # Build the worker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - build
+      - '-t'
+      - 'us-east1-docker.pkg.dev/$PROJECT_ID/salefunnel/worker:$COMMIT_SHA'
+      - '-t'
+      - 'us-east1-docker.pkg.dev/$PROJECT_ID/salefunnel/worker:latest'
+      - '-f'
+      - 'Dockerfile.worker'
+      - '.'
+
+  # Push app image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'us-east1-docker.pkg.dev/$PROJECT_ID/salefunnel/app:$COMMIT_SHA']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'us-east1-docker.pkg.dev/$PROJECT_ID/salefunnel/app:latest']
+
+  # Push worker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'us-east1-docker.pkg.dev/$PROJECT_ID/salefunnel/worker:$COMMIT_SHA']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'us-east1-docker.pkg.dev/$PROJECT_ID/salefunnel/worker:latest']
+
+  # Run Prisma migrations
+  - name: 'us-east1-docker.pkg.dev/$PROJECT_ID/salefunnel/app:$COMMIT_SHA'
+    entrypoint: 'npx'
+    args: ['prisma', 'migrate', 'deploy']
+    secretEnv: ['DATABASE_URL']
+
+  # Deploy app to Cloud Run
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args:
+      - run
+      - deploy
+      - salefunnel-app
+      - '--image=us-east1-docker.pkg.dev/$PROJECT_ID/salefunnel/app:$COMMIT_SHA'
+      - '--region=us-east1'
+      - '--platform=managed'
+      - '--allow-unauthenticated'
+      - '--min-instances=0'
+      - '--max-instances=4'
+      - '--memory=512Mi'
+      - '--cpu=1'
+      - '--port=3000'
+      - '--add-cloudsql-instances=$PROJECT_ID:us-east1:salefunnel-db'
+      - '--set-secrets=DATABASE_URL=DATABASE_URL:latest,NEXTAUTH_SECRET=NEXTAUTH_SECRET:latest,GOOGLE_CLIENT_ID=GOOGLE_CLIENT_ID:latest,GOOGLE_CLIENT_SECRET=GOOGLE_CLIENT_SECRET:latest,ANTHROPIC_API_KEY=ANTHROPIC_API_KEY:latest'
+      - '--set-env-vars=NEXTAUTH_URL=https://salefunnel-app-URL.a.run.app,NODE_ENV=production'
+
+  # Deploy worker to Cloud Run
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args:
+      - run
+      - deploy
+      - salefunnel-worker
+      - '--image=us-east1-docker.pkg.dev/$PROJECT_ID/salefunnel/worker:$COMMIT_SHA'
+      - '--region=us-east1'
+      - '--platform=managed'
+      - '--no-allow-unauthenticated'
+      - '--min-instances=1'
+      - '--max-instances=1'
+      - '--memory=512Mi'
+      - '--cpu=1'
+      - '--add-cloudsql-instances=$PROJECT_ID:us-east1:salefunnel-db'
+      - '--set-secrets=DATABASE_URL=DATABASE_URL:latest,ANTHROPIC_API_KEY=ANTHROPIC_API_KEY:latest,GOOGLE_CLIENT_ID=GOOGLE_CLIENT_ID:latest,GOOGLE_CLIENT_SECRET=GOOGLE_CLIENT_SECRET:latest'
+      - '--set-env-vars=NODE_ENV=production'
+
+availableSecrets:
+  secretManager:
+    - versionName: projects/$PROJECT_ID/secrets/DATABASE_URL/versions/latest
+      env: 'DATABASE_URL'
+
+images:
+  - 'us-east1-docker.pkg.dev/$PROJECT_ID/salefunnel/app:$COMMIT_SHA'
+  - 'us-east1-docker.pkg.dev/$PROJECT_ID/salefunnel/worker:$COMMIT_SHA'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
