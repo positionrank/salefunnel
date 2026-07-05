@@ -38,9 +38,12 @@ steps:
     args: ['push', 'us-east1-docker.pkg.dev/$PROJECT_ID/salefunnel/worker:latest']
 
   # Run Prisma migrations
+  # The runner image only ships @prisma/client, not the prisma CLI, so a bare
+  # `npx prisma` fetches latest from the registry (currently a Prisma 7 major
+  # that dropped schema.prisma's datasource.url) instead of our pinned 5.22.0.
   - name: 'us-east1-docker.pkg.dev/$PROJECT_ID/salefunnel/app:$COMMIT_SHA'
     entrypoint: 'npx'
-    args: ['prisma', 'migrate', 'deploy']
+    args: ['prisma@5.22.0', 'migrate', 'deploy']
     secretEnv: ['DATABASE_URL']
 
   # Deploy app to Cloud Run
