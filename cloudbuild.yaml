@@ -41,9 +41,27 @@ steps:
   # The runner image only ships @prisma/client, not the prisma CLI, so a bare
   # `npx prisma` fetches latest from the registry (currently a Prisma 7 major
   # that dropped schema.prisma's datasource.url) instead of our pinned 5.22.0.
+  # Cloud Build steps also don't get Cloud Run's automatic Cloud SQL Auth Proxy
+  # socket, so start one ourselves at the same /cloudsql/<instance> path that
+  # DATABASE_URL's ?host= param already points at.
   - name: 'us-east1-docker.pkg.dev/$PROJECT_ID/salefunnel/app:$COMMIT_SHA'
-    entrypoint: 'npx'
-    args: ['prisma@5.22.0', 'migrate', 'deploy']
+    entrypoint: 'bash'
+    args:
+      - -c
+      - |
+        set -e
+        apk add --no-cache curl
+        curl -sLo /tmp/cloud-sql-proxy https://github.com/GoogleCloudPlatform/cloud-sql-proxy/releases/latest/download/cloud-sql-proxy.linux.amd64
+        chmod +x /tmp/cloud-sql-proxy
+        mkdir -p /cloudsql
+        /tmp/cloud-sql-proxy --unix-socket=/cloudsql $PROJECT_ID:us-east1:salefunnel-db &
+        PROXY_PID=$$!
+        for i in $(seq 1 30); do
+          [ -S "/cloudsql/$PROJECT_ID:us-east1:salefunnel-db/.s.PGSQL.5432" ] && break
+          sleep 1
+        done
+        npx prisma@5.22.0 migrate deploy
+        kill $$PROXY_PID
     secretEnv: ['DATABASE_URL']
 
   # Deploy app to Cloud Run
