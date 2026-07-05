@@ -45,7 +45,7 @@ steps:
   # socket, so start one ourselves at the same /cloudsql/<instance> path that
   # DATABASE_URL's ?host= param already points at.
   - name: 'us-east1-docker.pkg.dev/$PROJECT_ID/salefunnel/app:$COMMIT_SHA'
-    entrypoint: 'bash'
+    entrypoint: 'sh'
     args:
       - -c
       - |
