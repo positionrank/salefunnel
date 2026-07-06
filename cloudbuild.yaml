@@ -44,6 +44,10 @@ steps:
   # Cloud Build steps also don't get Cloud Run's automatic Cloud SQL Auth Proxy
   # socket, so start one ourselves at the same /cloudsql/<instance> path that
   # DATABASE_URL's ?host= param already points at.
+  # cloud-sql-proxy no longer attaches binaries as GitHub release assets (all
+  # recent releases show 0 assets) — it publishes to this GCS bucket instead.
+  # `-f` makes curl fail the build loudly if this URL ever 404s again, instead
+  # of silently saving an HTML error page that gets "executed" as the proxy.
   - name: 'us-east1-docker.pkg.dev/$PROJECT_ID/salefunnel/app:$COMMIT_SHA'
     entrypoint: 'sh'
     args:
@@ -51,7 +55,7 @@ steps:
       - |
         set -e
         apk add --no-cache curl
-        curl -sLo /tmp/cloud-sql-proxy https://github.com/GoogleCloudPlatform/cloud-sql-proxy/releases/latest/download/cloud-sql-proxy.linux.amd64
+        curl -sfLo /tmp/cloud-sql-proxy https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v2.23.0/cloud-sql-proxy.linux.amd64
         chmod +x /tmp/cloud-sql-proxy
         mkdir -p /cloudsql
         /tmp/cloud-sql-proxy --unix-socket=/cloudsql $PROJECT_ID:us-east1:salefunnel-db &
