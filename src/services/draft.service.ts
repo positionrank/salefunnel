@@ -1,5 +1,6 @@
 import { db } from '@/lib/db';
 import { log } from './activity.service';
+import { JOB_TYPES, enqueueJob } from '@/lib/queue';
 import type { EmailDraftStatus } from '@prisma/client';
 
 export interface CreateDraftInput {
@@ -71,12 +72,20 @@ export async function update(id: string, subject: string, bodyText: string, body
 }
 
 export async function approve(id: string, userId: string) {
+  const integration = await db.integrationAccount.findUnique({
+    where: { userId_provider: { userId, provider: 'GMAIL' } },
+  });
+  if (!integration?.active) {
+    throw new Error('Gmail is not connected — connect it in Settings before approving a draft to send.');
+  }
+
   const draft = await db.emailDraft.update({
     where: { id },
     data: { status: 'APPROVED', reviewedAt: new Date() },
     include: { lead: { include: { contact: true } } },
   });
   await log({ type: 'DRAFT_APPROVED', description: 'Draft approved for sending', leadId: draft.leadId, userId });
+  await enqueueJob(JOB_TYPES.SEND_EMAIL, { draftId: draft.id, integrationAccountId: integration.id });
   return draft;
 }
 

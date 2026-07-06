@@ -1,4 +1,5 @@
 import PgBoss from 'pg-boss';
+import { db } from '@/lib/db';
 
 export const JOB_TYPES = {
   ENRICH_COMPANY: 'enrich-company',
@@ -7,6 +8,7 @@ export const JOB_TYPES = {
   SEND_EMAIL: 'send-email',
   SCHEDULE_FOLLOWUPS: 'schedule-followups',
   SYNC_REPLIES: 'sync-replies',
+  SYNC_REPLIES_DISPATCH: 'sync-replies-dispatch',
 } as const;
 
 export type JobType = (typeof JOB_TYPES)[keyof typeof JOB_TYPES];
@@ -25,4 +27,14 @@ export async function getQueue(): Promise<PgBoss> {
   });
   await boss.start();
   return boss;
+}
+
+// Creates the JobRecord row handlers track progress against, then hands the
+// job to pg-boss. Used by /api/jobs for manual triggers and by handlers/
+// services that chain the next pipeline step automatically.
+export async function enqueueJob(type: JobType, payload: Record<string, unknown>) {
+  const jobRecord = await db.jobRecord.create({ data: { type, payload: payload as object } });
+  const activeBoss = await getQueue();
+  await activeBoss.send(type, { ...payload, jobRecordId: jobRecord.id });
+  return jobRecord;
 }

@@ -20,6 +20,7 @@ interface Draft {
 export default function ApprovalsPage() {
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchDrafts = useCallback(async () => {
     setLoading(true);
@@ -32,7 +33,13 @@ export default function ApprovalsPage() {
   useEffect(() => { void fetchDrafts(); }, [fetchDrafts]);
 
   const handleApprove = async (id: string) => {
-    await fetch(`/api/drafts/${id}/approve`, { method: 'POST' });
+    setError(null);
+    const res = await fetch(`/api/drafts/${id}/approve`, { method: 'POST' });
+    if (!res.ok) {
+      const json = await res.json().catch(() => null) as { message?: string } | null;
+      setError(json?.message ?? 'Failed to approve draft.');
+      return;
+    }
     setDrafts((prev) => prev.filter((d) => d.id !== id));
   };
 
@@ -58,6 +65,12 @@ export default function ApprovalsPage() {
     <div>
       <Header title="Approval Queue" />
       <div className="p-6 max-w-3xl">
+        {error && (
+          <div className="mb-4 rounded-lg bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-700 flex items-start gap-2">
+            <AlertCircle size={14} className="mt-0.5 shrink-0" />
+            {error}
+          </div>
+        )}
         {loading ? (
           <div className="text-center text-sm text-slate-400 py-12">Loading drafts…</div>
         ) : drafts.length === 0 ? (

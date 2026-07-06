@@ -7,6 +7,7 @@ import { handleGenerateDraft, type GenerateDraftPayload } from './handlers/gener
 import { handleSendEmail, type SendEmailPayload } from './handlers/send-email';
 import { handleScheduleFollowUps, type ScheduleFollowUpsPayload } from './handlers/schedule-followups';
 import { handleSyncReplies, type SyncRepliesPayload } from './handlers/sync-replies';
+import { handleDispatchSyncReplies } from './handlers/dispatch-sync-replies';
 
 function startHealthServer() {
   const port = Number(process.env.PORT) || 8080;
@@ -62,8 +63,15 @@ async function startWorker() {
     await handleSyncReplies(job.data);
   });
 
-  // Schedule periodic reply sync every 15 minutes
-  await boss.schedule(JOB_TYPES.SYNC_REPLIES, '*/15 * * * *', {});
+  await boss.work(JOB_TYPES.SYNC_REPLIES_DISPATCH, async () => {
+    console.log(`[worker] Processing ${JOB_TYPES.SYNC_REPLIES_DISPATCH}`);
+    await handleDispatchSyncReplies();
+  });
+
+  // Every 15 minutes, fan out a real sync-replies job per connected Gmail
+  // account (see dispatch-sync-replies.ts — this tick has no per-account
+  // payload of its own to pass sync-replies directly).
+  await boss.schedule(JOB_TYPES.SYNC_REPLIES_DISPATCH, '*/15 * * * *', {});
 
   console.log('[worker] All handlers registered. Worker is running.');
 

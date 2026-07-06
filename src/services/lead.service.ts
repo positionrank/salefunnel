@@ -1,5 +1,6 @@
 import { db } from '@/lib/db';
 import { log } from './activity.service';
+import { JOB_TYPES, enqueueJob } from '@/lib/queue';
 import type { LeadStatus } from '@prisma/client';
 
 export interface CreateLeadInput {
@@ -84,6 +85,7 @@ export async function getById(id: string) {
 export async function create(input: CreateLeadInput, userId?: string) {
   const lead = await db.lead.create({ data: input });
   await log({ type: 'LEAD_CREATED', description: 'Lead created', leadId: lead.id, userId });
+  await enqueueJob(JOB_TYPES.ENRICH_COMPANY, { companyId: lead.companyId, leadId: lead.id });
   return lead;
 }
 

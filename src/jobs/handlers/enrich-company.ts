@@ -1,5 +1,6 @@
 import { db } from '@/lib/db';
 import { getDefaultEnrichmentProvider } from '@/providers/enrichment';
+import { JOB_TYPES, enqueueJob } from '@/lib/queue';
 import { log } from '@/services/activity.service';
 
 export interface EnrichCompanyPayload {
@@ -53,6 +54,7 @@ export async function handleEnrichCompany(payload: EnrichCompanyPayload): Promis
     if (leadId) {
       await db.lead.update({ where: { id: leadId }, data: { status: 'ENRICHED' } });
       await log({ type: 'LEAD_ENRICHED', description: 'Company enriched via website scrape', leadId });
+      await enqueueJob(JOB_TYPES.GENERATE_PERSONALIZATION, { leadId });
     }
 
     await db.jobRecord.update({

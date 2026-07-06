@@ -1,6 +1,7 @@
 import { db } from '@/lib/db';
 import { getAIProvider } from '@/providers/ai';
 import { log } from '@/services/activity.service';
+import { JOB_TYPES, enqueueJob } from '@/lib/queue';
 
 export interface GenerateDraftPayload {
   leadId: string;
@@ -29,7 +30,7 @@ export async function handleGenerateDraft(payload: GenerateDraftPayload): Promis
           personalizationRecord: true,
         },
       }),
-      db.campaignSequence.findUnique({ where: { id: sequenceId } }),
+      db.campaignSequence.findUnique({ where: { id: sequenceId }, include: { campaign: true } }),
       db.emailTemplate.findUnique({ where: { id: templateId } }),
     ]);
 
@@ -68,7 +69,7 @@ export async function handleGenerateDraft(payload: GenerateDraftPayload): Promis
       senderName,
     });
 
-    await db.emailDraft.create({
+    const created = await db.emailDraft.create({
       data: {
         leadId,
         campaignLeadId,
@@ -85,6 +86,19 @@ export async function handleGenerateDraft(payload: GenerateDraftPayload): Promis
     });
 
     await log({ type: 'DRAFT_GENERATED', description: `Draft generated for step ${sequence.stepNumber}`, leadId });
+
+    if (sequence.campaign.autoSend) {
+      const integration = await db.integrationAccount.findUnique({
+        where: { userId_provider: { userId: sequence.campaign.createdByUserId, provider: 'GMAIL' } },
+      });
+
+      if (integration?.active) {
+        await db.emailDraft.update({ where: { id: created.id }, data: { status: 'APPROVED', reviewedAt: new Date() } });
+        await log({ type: 'DRAFT_APPROVED', description: 'Auto-approved (campaign auto-send enabled)', leadId });
+        await enqueueJob(JOB_TYPES.SEND_EMAIL, { draftId: created.id, integrationAccountId: integration.id });
+      }
+      // else: leave GENERATED — falls into the manual Approvals queue until Gmail is connected.
+    }
 
     await db.jobRecord.update({
       where: { id: jobRecordId },

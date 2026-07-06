@@ -1,5 +1,6 @@
 import { db } from '@/lib/db';
 import { log } from './activity.service';
+import { JOB_TYPES, enqueueJob } from '@/lib/queue';
 
 export interface CsvRow {
   company_name?: string;
@@ -76,6 +77,7 @@ export async function importCsv(rows: CsvRow[], fileName: string, userId?: strin
       });
 
       await log({ type: 'LEAD_IMPORTED', description: `Imported lead for ${company.name}`, leadId: lead.id, userId });
+      await enqueueJob(JOB_TYPES.ENRICH_COMPANY, { companyId: company.id, leadId: lead.id });
       created++;
     } catch (err) {
       errors.push({ row: i + 1, error: err instanceof Error ? err.message : 'Unknown error' });

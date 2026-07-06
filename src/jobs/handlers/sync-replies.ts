@@ -1,5 +1,6 @@
 import { db } from '@/lib/db';
 import { createEmailProvider } from '@/providers/email';
+import { getValidGmailAccessToken } from '@/lib/gmail-token';
 import { log } from '@/services/activity.service';
 
 export interface SyncRepliesPayload {
@@ -17,9 +18,10 @@ export async function handleSyncReplies(payload: SyncRepliesPayload): Promise<vo
 
   try {
     const integration = await db.integrationAccount.findUnique({ where: { id: integrationAccountId } });
-    if (!integration?.accessToken) throw new Error('Integration account not found or missing token');
+    if (!integration?.active) throw new Error('Integration account not found or inactive');
 
-    const provider = createEmailProvider('gmail', integration.accessToken);
+    const accessToken = await getValidGmailAccessToken(integrationAccountId);
+    const provider = createEmailProvider('gmail', accessToken);
 
     const sentMessages = await db.emailMessage.findMany({
       where: {

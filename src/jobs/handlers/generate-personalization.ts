@@ -1,6 +1,7 @@
 import { db } from '@/lib/db';
 import { getAIProvider } from '@/providers/ai';
 import { log } from '@/services/activity.service';
+import { enqueueNextDraftIfReady } from '@/services/campaign.service';
 
 export interface GeneratePersonalizationPayload {
   leadId: string;
@@ -66,6 +67,7 @@ export async function handleGeneratePersonalization(payload: GeneratePersonaliza
 
     await db.lead.update({ where: { id: leadId }, data: { status: 'READY' } });
     await log({ type: 'DRAFT_GENERATED', description: 'Personalization generated', leadId });
+    await enqueueNextDraftIfReady(leadId);
 
     await db.jobRecord.update({
       where: { id: jobRecordId },

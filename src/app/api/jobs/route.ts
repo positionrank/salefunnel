@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { getQueue, JOB_TYPES } from '@/lib/queue';
+import { JOB_TYPES, enqueueJob } from '@/lib/queue';
 import { z } from 'zod';
 
 const EnqueueSchema = z.object({
@@ -37,12 +37,7 @@ export async function POST(req: NextRequest) {
   const parsed = EnqueueSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: 'VALIDATION_ERROR', details: parsed.error.issues }, { status: 400 });
 
-  const jobRecord = await db.jobRecord.create({
-    data: { type: parsed.data.type, payload: parsed.data.payload as object },
-  });
-
-  const boss = await getQueue();
-  await boss.send(parsed.data.type, { ...parsed.data.payload, jobRecordId: jobRecord.id });
+  const jobRecord = await enqueueJob(parsed.data.type, parsed.data.payload);
 
   return NextResponse.json({ data: jobRecord }, { status: 201 });
 }
