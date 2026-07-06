@@ -6,6 +6,7 @@ import { Search, Upload, Plus } from 'lucide-react';
 import { Header } from '@/components/layout/Header';
 import { LeadStatusBadge } from '@/components/leads/LeadStatusBadge';
 import { ImportModal } from '@/components/leads/ImportModal';
+import { AddLeadModal } from '@/components/leads/AddLeadModal';
 import { Button } from '@/components/ui/button';
 import { formatDate } from '@/lib/utils';
 import type { LeadStatus } from '@prisma/client';
@@ -26,6 +27,7 @@ export default function LeadsPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [showImport, setShowImport] = useState(false);
+  const [showAddLead, setShowAddLead] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const fetchLeads = useCallback(async () => {
@@ -68,7 +70,7 @@ export default function LeadsPage() {
           <Button variant="secondary" size="sm" onClick={() => setShowImport(true)}>
             <Upload size={13} /> Import CSV
           </Button>
-          <Button size="sm">
+          <Button size="sm" onClick={() => setShowAddLead(true)}>
             <Plus size={13} /> Add Lead
           </Button>
         </div>
@@ -131,6 +133,13 @@ export default function LeadsPage() {
         <ImportModal
           onClose={() => setShowImport(false)}
           onSuccess={() => { void fetchLeads(); }}
+        />
+      )}
+
+      {showAddLead && (
+        <AddLeadModal
+          onClose={() => setShowAddLead(false)}
+          onSuccess={() => { setShowAddLead(false); void fetchLeads(); }}
         />
       )}
     </div>
