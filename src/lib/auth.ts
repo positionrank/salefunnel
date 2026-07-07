@@ -55,7 +55,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      // Google's OIDC discovery doc now advertises
+      // authorization_response_iss_parameter_supported: true, but Google's
+      // actual redirect doesn't include an `iss` param — oauth4webapi enforces
+      // that mismatch as a hard failure (CallbackRouteError: "iss" missing).
+      // Pointing at Google's fixed endpoints directly skips discovery (and
+      // that check) entirely; these URLs are Google's stable, documented ones.
       authorization: {
+        url: 'https://accounts.google.com/o/oauth2/v2/auth',
         params: {
           scope: [
             'openid',
@@ -70,6 +77,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           prompt: 'consent',
         },
       },
+      token: 'https://oauth2.googleapis.com/token',
+      userinfo: 'https://openidconnect.googleapis.com/v1/userinfo',
     }),
   ],
   session: { strategy: 'database' },
