@@ -48,13 +48,16 @@ export function AddLeadModal({ onClose, onSuccess }: AddLeadModalProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rows: [form], fileName: 'manual-entry' }),
       });
-      const json = await res.json() as {
-        data?: { created: number; failed: number; errors: Array<{ row: number; error: string }> };
-        error?: string;
-      };
 
-      if (!res.ok) {
-        setError(json.error ?? 'Failed to add lead.');
+      let json: { data?: { created: number; failed: number; errors: Array<{ row: number; error: string }> }; error?: string } | null = null;
+      try {
+        json = await res.json();
+      } catch {
+        // response wasn't JSON (e.g. a server error page) — fall through to the generic error below
+      }
+
+      if (!res.ok || !json) {
+        setError(json?.error ?? `Failed to add lead (server returned ${res.status}).`);
         return;
       }
       if (!json.data || json.data.created === 0) {
@@ -63,6 +66,8 @@ export function AddLeadModal({ onClose, onSuccess }: AddLeadModalProps) {
       }
 
       onSuccess();
+    } catch {
+      setError('Failed to add lead — check your connection and try again.');
     } finally {
       setSaving(false);
     }

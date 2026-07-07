@@ -47,6 +47,10 @@ const adapter = {
 // See .env.example for instructions on creating Google OAuth credentials.
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter,
+  // Auth.js only auto-trusts the request host on Vercel; everywhere else
+  // (Cloud Run included) it rejects the session with UntrustedHost unless
+  // told to trust it, which was silently breaking every authenticated route.
+  trustHost: true,
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
