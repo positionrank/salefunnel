@@ -17,7 +17,7 @@ let boss: PgBoss | null = null;
 
 export async function getQueue(): Promise<PgBoss> {
   if (boss) return boss;
-  boss = new PgBoss({
+  const instance = new PgBoss({
     connectionString: process.env.DATABASE_URL!,
     retryLimit: 3,
     retryDelay: 30,
@@ -25,7 +25,16 @@ export async function getQueue(): Promise<PgBoss> {
     deleteAfterDays: 14,
     monitorStateIntervalSeconds: 30,
   });
-  await boss.start();
+  await instance.start();
+  // send()/work()/schedule() never create their queue (pg-boss v10 partitions
+  // the job table per queue and requires createQueue() first) — nothing else
+  // in this codebase called it, so every job type's queue never existed and
+  // send() was silently failing for all of them since this ever shipped.
+  // createQueue() is a no-op (ON CONFLICT DO NOTHING) if it already exists.
+  for (const type of Object.values(JOB_TYPES)) {
+    await instance.createQueue(type);
+  }
+  boss = instance;
   return boss;
 }
 
