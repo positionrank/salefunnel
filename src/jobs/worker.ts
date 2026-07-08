@@ -68,6 +68,12 @@ async function startWorker() {
     await handleDispatchSyncReplies();
   });
 
+  // schedule() requires the queue to already exist (FK to pgboss.queue) — this
+  // queue is otherwise only ever referenced by schedule() below, never send(),
+  // so it never gets created and every boot threw "Queue ... not found" here,
+  // crash-looping the entire worker. createQueue() is a no-op if it already exists.
+  await boss.createQueue(JOB_TYPES.SYNC_REPLIES_DISPATCH);
+
   // Every 15 minutes, fan out a real sync-replies job per connected Gmail
   // account (see dispatch-sync-replies.ts — this tick has no per-account
   // payload of its own to pass sync-replies directly).
