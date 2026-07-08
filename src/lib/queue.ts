@@ -25,6 +25,12 @@ export async function getQueue(): Promise<PgBoss> {
     deleteAfterDays: 14,
     monitorStateIntervalSeconds: 30,
   });
+  // PgBoss extends EventEmitter and emits 'error' from its background
+  // maintenance/monitoring/timekeeper loops on any transient DB hiccup
+  // (connection reset, brief network blip) — completely normal for a cloud
+  // DB. Node throws an unhandled error and kills the process if nothing is
+  // listening, which is what was crash-looping the worker on every such blip.
+  instance.on('error', (err) => console.error('[pg-boss]', err));
   await instance.start();
   // send()/work()/schedule() never create their queue (pg-boss v10 partitions
   // the job table per queue and requires createQueue() first) — nothing else
